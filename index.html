@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROMEO — Rapid Optical Mode Evaluation and Observation</title>
+<meta name="description" content="ROMEO reconstructs the complex optical field of a 42-mode fibre from a single camera image, by engineering the measurement to break optical symmetries. A Royal Society Industry Fellowship at Aston University with Arden Photonics.">
+<meta property="og:title" content="ROMEO — Rapid Optical Mode Evaluation and Observation">
+<meta property="og:description" content="Single-image optical field reconstruction by measurement-space symmetry breaking.">
+<meta property="og:image" content="assets/figures/field_recovery.png">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%230d1b2a'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%23f2a541' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#top"><span class="brand-mark"></span>ROMEO</a>
+  <nav id="nav">
+    <a href="#idea">Idea</a>
+    <a href="#lab">Lab</a>
+    <a href="#results">Simulations</a>
+    <a href="#experiment">Experiment</a>
+    <a href="#progress">Progress</a>
+    <a href="#paper">Paper</a>
+  </nav>
+  <div class="scroll-progress" id="scroll-progress"></div>
+</header>
+
+<section class="hero" id="top">
+  <canvas id="hero-canvas" aria-hidden="true"></canvas>
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <p class="eyebrow">Royal Society Industry Fellowship · 2026–2029</p>
+      <h1>ROMEO</h1>
+      <p class="hero-sub">Rapid Optical Mode Evaluation and Observation</p>
+      <p class="hero-lede">Cameras record only intensity, but light also carries phase. ROMEO recovers the full complex field of a multimode fibre from <strong>one camera image</strong>: a fixed optical element breaks the symmetries that hide the phase, and a stored linear inverse reads the field out in milliseconds.</p>
+      <div class="hero-tags">
+        <span>Aston Institute of Photonic Technologies</span>
+        <span>in partnership with Arden Photonics</span>
+      </div>
+      <div class="hero-cta">
+        <a class="cta" href="#experiment">See the experiment</a>
+        <a class="cta ghost" href="#lab">Try the interactive lab</a>
+      </div>
+    </div>
+    <figure class="live" aria-label="Live reconstruction demo">
+      <div class="live-row">
+        <div class="live-tile">
+          <canvas id="hero-true" width="48" height="48"></canvas>
+          <span>Unknown field</span>
+        </div>
+        <div class="live-arrow" aria-hidden="true">→</div>
+        <div class="live-tile">
+          <canvas id="hero-cam" width="48" height="48"></canvas>
+          <span>One camera frame</span>
+        </div>
+        <div class="live-arrow" aria-hidden="true">→</div>
+        <div class="live-tile">
+          <canvas id="hero-rec" width="48" height="48"></canvas>
+          <span>Recovered field</span>
+        </div>
+      </div>
+      <figcaption><span class="pulse"></span>Running live in your browser: a simulated 17-mode fibre, reconstructed from every noisy frame. Field error <b id="hero-err">—</b></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="statband" aria-label="Key results">
+  <div class="wrap stats-grid">
+    <div class="stat"><b data-count="42">42</b><span>fibre modes recovered in experiment, amplitudes and phases</span></div>
+    <div class="stat"><b data-count="1">1</b><span>intensity image per reconstruction, with no reference beam</span></div>
+    <div class="stat"><b data-count="2.1" data-decimals="1" data-suffix=" ms">2.1 ms</b><span>per frame, from raw camera frame to modal weights</span></div>
+    <div class="stat"><b data-count="4000" data-suffix="+">4,000+</b><span>frames per second when processed in batches on one GPU</span></div>
+    <div class="stat"><b data-count="3.2" data-decimals="1" data-suffix="%">3.2%</b><span>median field error with a passive diffuser (8.8% with an SLM)</span></div>
+  </div>
+</section>
+
+<main>
+
+<section class="section" id="problem">
+  <div class="wrap">
+    <p class="kicker">The problem</p>
+    <h2>Why measuring modes is hard</h2>
+    <p class="lead">Light in a multimode fibre travels as a superposition of guided <em>modes</em>. Their powers tell us where the energy is; their relative phases set the wavefront. Measuring both, a process called <strong>mode decomposition</strong>, matters for fibre lasers, telecommunications, sensing and imaging. Cameras and photodetectors, however, only see intensity.</p>
+    <div class="cards three">
+      <article class="card reveal">
+        <h3>Interferometry</h3>
+        <p>Digital holography measures amplitude and phase accurately but needs a stable reference beam, careful calibration and active stabilisation. That makes it hard to use on a factory floor.</p>
+      </article>
+      <article class="card reveal">
+        <h3>Iterative phase retrieval</h3>
+        <p>Gerchberg–Saxton and gradient-based methods need no reference arm, but they are computationally heavy and do not generally guarantee a unique answer.</p>
+      </article>
+      <article class="card reveal">
+        <h3>Fast intensity-only methods</h3>
+        <p>Direct linear inversion of the intensity is very fast, but the symmetry of fibre modes makes the problem ill-conditioned, so it has been limited to a handful of modes.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="idea">
+  <div class="wrap">
+    <p class="kicker">The idea</p>
+    <h2>Break the symmetry before the camera</h2>
+    <div class="split">
+      <div>
+        <p>For a field made of <span class="m">M</span> known modes, the intensity at every pixel is <em>linear</em> in the pairwise products of the modal coefficients:</p>
+        <div class="eq" data-tex="I(x,y)=\Big|\sum_{k=1}^{M}C_k\,\hat L\Psi_k\Big|^2=\sum_{k,j}\underbrace{C_kC_j^{*}}_{S_{kj}}\;\underbrace{\hat L\Psi_k\,\big(\hat L\Psi_j\big)^{*}}_{\Upsilon_{kj}(x,y)}"></div>
+        <p>Stacking pixels gives <span class="m" data-tex="\vec I=\boldsymbol\Upsilon\vec S"></span>. If the pairwise-mode-product (PMP) matrix <span class="m" data-tex="\boldsymbol\Upsilon"></span> is well conditioned, one stored pseudo-inverse and a rank-one projection return every amplitude and phase from a single frame.</p>
+        <p>The catch is symmetry. Viewed directly, circularly symmetric fibre modes produce many products that are identical or nearly so. Physically different fields then give <em>the same image</em>; we call this <strong>measurement degeneracy</strong>. No algorithm can recover information the optics have already discarded.</p>
+        <p class="callout">There is also a hard limit. Every pixel responds to total power with the same sign, so for any linear optics and any detector <span class="m" data-tex="\kappa(\boldsymbol\Upsilon)\ge\sqrt{M+1}"></span>: 3.3 for ten modes, 6.6 for 42. This floor is the benchmark a measurement design is judged against.</p>
+      </div>
+      <ol class="steps">
+        <li class="reveal"><span>1</span><div><h4>Engineer the optics</h4><p>Optimise a static phase transform <span class="m" data-tex="\hat L"></span> (a phase mask followed by free-space propagation) to minimise the condition number <span class="m" data-tex="\kappa(\boldsymbol\Upsilon)"></span> while keeping the light on the detector.</p></div></li>
+        <li class="reveal"><span>2</span><div><h4>Calibrate once</h4><p>Measure how each mode appears on the camera and store the inverse of the PMP matrix. The phase element can be an SLM, a static phase plate or even a ground-glass diffuser.</p></div></li>
+        <li class="reveal"><span>3</span><div><h4>Invert directly</h4><p>Multiply each camera frame by the stored inverse and project onto rank one. There is no iterative phase retrieval, so the computation takes about two milliseconds.</p></div></li>
+      </ol>
+    </div>
+    <figure class="pipeline reveal" aria-label="ROMEO measurement pipeline">
+      <svg viewBox="0 0 960 170" role="img">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="currentColor"/></marker>
+          <radialGradient id="g-fibre"><stop offset="0" stop-color="#f2a541"/><stop offset="1" stop-color="#e2553f" stop-opacity=".1"/></radialGradient>
+        </defs>
+        <g class="pl-node"><rect x="10" y="40" width="130" height="90" rx="12"/><circle cx="75" cy="85" r="26" fill="url(#g-fibre)"/><text x="75" y="155">Fibre output</text></g>
+        <path class="pl-arrow" d="M148 85H210" marker-end="url(#arr)"/>
+        <g class="pl-node"><rect x="218" y="40" width="130" height="90" rx="12"/><g class="pl-mask"></g><text x="283" y="155">Phase mask (SLM or diffuser)</text></g>
+        <path class="pl-arrow" d="M356 85H418" marker-end="url(#arr)"/>
+        <g class="pl-node"><rect x="426" y="40" width="130" height="90" rx="12"/><path d="M446 85q20-30 45 0t45 0" class="pl-wave"/><path d="M446 100q20-30 45 0t45 0" class="pl-wave"/><text x="491" y="155">Free-space propagation</text></g>
+        <path class="pl-arrow" d="M564 85H626" marker-end="url(#arr)"/>
+        <g class="pl-node"><rect x="634" y="40" width="130" height="90" rx="12"/><g class="pl-dots"></g><text x="699" y="155">Intensity camera</text></g>
+        <path class="pl-arrow" d="M772 85H834" marker-end="url(#arr)"/>
+        <g class="pl-node accent"><rect x="842" y="40" width="110" height="90" rx="12"/><text x="897" y="80" class="pl-math">Υ⁺ I</text><text x="897" y="104" class="pl-math">→ C</text><text x="897" y="155">Stored inverse</text></g>
+      </svg>
+    </figure>
+  </div>
+</section>
+
+<section class="section lab" id="lab">
+  <div class="wrap">
+    <p class="kicker">Hands-on</p>
+    <h2>Interactive lab</h2>
+    <p class="lead">A simulated step-index fibre, observed through the paper's optimised phase mask. Drag the phasors to set the field in the fibre, choose how it is observed, and watch the field be reconstructed from intensity alone. All the processing runs live in your browser.</p>
+
+    <div class="lab-controls">
+      <label>Fibre
+        <select id="sel-fibre"></select>
+      </label>
+      <div class="seg" id="seg-meas" role="radiogroup" aria-label="Measurement">
+        <button data-m="near">Near field</button>
+        <button data-m="flat">No mask</button>
+        <button data-m="random">Random mask</button>
+        <button data-m="optimised" class="on">Optimised mask</button>
+      </div>
+      <p class="loading" id="lab-loading" role="status" hidden></p>
+    </div>
+
+    <div class="lab-grid">
+      <div class="panel">
+        <div class="panel-h"><h4>Field in the fibre</h4><span class="tag">truth</span></div>
+        <canvas class="field" id="cv-true" width="48" height="48"></canvas>
+        <p class="hint">Hue = phase, brightness = intensity</p>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h4>What the detector sees</h4><span class="tag" id="tag-meas">optimised mask</span></div>
+        <canvas class="field" id="cv-cam" width="48" height="48"></canvas>
+        <p class="hint" id="hint-cam">Intensity only</p>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h4>Reconstructed field</h4><span class="tag" id="tag-ok">—</span></div>
+        <canvas class="field" id="cv-rec" width="48" height="48"></canvas>
+        <p class="hint">Υ⁺ I → rank-one projection, aligned for global phase</p>
+      </div>
+      <div class="panel mask-panel">
+        <div class="panel-h"><h4>Optical element</h4></div>
+        <canvas class="field small" id="cv-mask" width="24" height="24"></canvas>
+        <dl class="stats">
+          <div><dt>Condition number κ</dt><dd id="st-kappa">—</dd></div>
+          <div><dt>Floor √(M+1)</dt><dd id="st-floor">—</dd></div>
+          <div><dt>Light on detector</dt><dd id="st-capture">—</dd></div>
+          <div><dt>Field error (NMSE)</dt><dd id="st-nmse">—</dd></div>
+          <div><dt>Conjugate twin differs by</dt><dd id="st-twin">—</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="lab-row">
+      <div class="panel phasors-panel">
+        <div class="panel-h"><h4>Modal coefficients <small>drag the dots, double-click to zero: ● truth, ○ reconstruction</small></h4>
+          <div class="btns">
+            <button id="btn-random">Random field</button>
+            <button id="btn-twin" title="Replace every coefficient by its complex conjugate">Conjugate twin</button>
+            <button id="btn-animate" aria-pressed="false">▶ Evolve</button>
+          </div>
+        </div>
+        <div id="phasors" class="phasors"></div>
+        <div class="evolve-row">
+          <div class="seg small" id="seg-evolve" role="radiogroup" aria-label="How the field evolves">
+            <button data-e="rotate" class="on" title="Each mode keeps its amplitude while its phase rotates at its own rate">Phase rotation</button>
+            <button data-e="drift" title="Amplitude and phase of every mode wander smoothly and independently, staying inside the circle">Random drift</button>
+            <button data-e="pictures" title="42 modes: tour through pairs of different fields that draw the same picture in the near field">Pictures</button>
+          </div>
+          <p class="tour-status" id="tour-status" role="status" hidden></p>
+          <label class="slider inline">Evolution speed <output id="out-speed">1.0×</output>
+            <input type="range" id="rng-speed" min="0" max="100" value="50" step="1">
+          </label>
+        </div>
+      </div>
+      <div class="panel knobs">
+        <div class="panel-h"><h4>Measurement</h4></div>
+        <label class="slider">Pixel SNR <output id="out-snr">20 dB</output>
+          <input type="range" id="rng-snr" min="-10" max="61" value="20" step="1">
+        </label>
+        <p class="note" id="note-k"></p>
+        <button id="btn-bench" class="wide">Time 1,000 reconstructions in this browser</button>
+        <p class="note" id="out-bench"></p>
+      </div>
+    </div>
+
+    <div class="panel spectrum-panel">
+      <div class="panel-h"><h4>Singular-value spectrum of the PMP matrix</h4><small>flat is good, a cliff means lost information</small></div>
+      <canvas id="cv-spectrum" height="260"></canvas>
+      <div class="legend" id="spectrum-legend"></div>
+    </div>
+
+    <details class="explain">
+      <summary>What to try</summary>
+      <ul>
+        <li><strong>Near field + Conjugate twin.</strong> The camera image does not change at all, because the LP modes are real and the products only report <span class="m" data-tex="\mathrm{Re}\,C_kC_j^*"></span>. The reconstruction recovers only real coefficients.</li>
+        <li><strong>No mask.</strong> The lens and free-space propagation alone break some symmetries but not all. The spectrum still ends in a cliff (κ from about 1,400 for 6 modes to about 29,000 for 42), so noise is amplified enormously.</li>
+        <li><strong>Random mask.</strong> A fine random phase breaks the degeneracy, but about a quarter of the light scatters off the detector, which wastes signal.</li>
+        <li><strong>Optimised mask.</strong> The mask from the paper keeps 98% of the light and gives a nearly flat spectrum, so the reconstruction is stable even at low SNR. Compare its κ with the floor.</li>
+        <li><strong>42 modes.</strong> 1,764 unknown products per frame, the same problem as the paper's experiment. Try Random drift with the SNR at 10 dB.</li>
+      </ul>
+      <p class="fine">Simulation: the paper's optical system (633 nm, NA 0.10, a lens, a 1024×1024 phase plane at 8 µm with the optimised mask, and a camera 68.6 mm behind it). The camera here is 128×128 pixels over its central 4.1 mm, with the field evaluated at each pixel's centre; the near field is a 64×64 image of the core. The pseudo-inverses are precomputed. Noise is additive Gaussian, with the SNR defined for a fully captured beam, so light lost off the detector really costs signal.</p>
+    </details>
+  </div>
+</section>
+
+<section class="section" id="results">
+  <div class="wrap">
+    <p class="kicker">Simulations</p>
+    <h2>Removing the degeneracy</h2>
+    <p class="lead">Full-scale simulations of a 42-mode fibre (1,764 unknown products per frame, a megapixel camera) show that one engineered phase mask makes every pairwise product distinguishable.</p>
+
+    <figure class="fig fig-narrow reveal">
+      <img src="assets/figures/field_recovery.png" alt="Two different 42-mode fields share one near-field image; after the same phase mask their measurements differ, and both modal compositions are recovered." loading="lazy" data-zoom>
+      <figcaption><strong>Breaking the symmetry, recovering the field.</strong> Two 42-mode fields, E<sub>A</sub> and E<sub>B</sub>, have different modal compositions but produce the same near-field image. After the same fixed phase mask their measurements differ, as the discrepancy map shows. Each field's modal powers (bars) are then recovered from its single image (circles) without iteration.</figcaption>
+    </figure>
+
+    <div class="viz reveal" id="viz-masks">
+      <div class="viz-h">
+        <div>
+          <h3>Only optimised masks keep both the conditioning and the light</h3>
+          <p>Each point is one phase mask in the same simulated 42-mode system. A useful mask sits at the bottom right: a low condition number, with the light kept on the detector.</p>
+        </div>
+        <div class="seg small" id="mask-zoom" role="radiogroup" aria-label="Chart range">
+          <button data-z="all" class="on">All masks</button>
+          <button data-z="high">High capture</button>
+        </div>
+      </div>
+      <div class="chart" id="chart-masks"></div>
+      <div class="legend">
+        <span style="--c:var(--s2)" class="dot">optimised masks (12 independent starts)</span>
+        <span style="--c:var(--s1)" class="dot">random masks (24 per cell size)</span>
+        <span style="--c:var(--neutral)" class="dot square">flat-phase SLM</span>
+      </div>
+      <p class="viz-note">All 12 optimised masks reach κ below 25 with at least 98% of the light captured. None of the random masks meets both targets: fine-grained ones are well conditioned but scatter most of the light away, and coarse ones keep the light but stay poorly conditioned.</p>
+    </div>
+
+    <div class="viz reveal" id="viz-noise">
+      <div class="viz-h">
+        <div>
+          <h3>One mask, from 6 to 51 modes</h3>
+          <p>The mask designed for 42 modes is kept fixed while the fibre core changes. Median error of the recovered modal coefficients over 1,000 random fields per point, against camera noise.</p>
+        </div>
+        <div class="chips" id="noise-modes" role="radiogroup" aria-label="Number of modes"></div>
+      </div>
+      <div class="chart" id="chart-noise"></div>
+      <div class="legend">
+        <span style="--c:var(--s2)" class="line">selected fibre: median, with the 5th–95th percentile band</span>
+        <span style="--c:var(--s1)" class="line">other mode counts</span>
+      </div>
+      <p class="viz-note" id="noise-note"></p>
+    </div>
+
+    <div class="cards three">
+      <article class="card reveal">
+        <h3>Why it works</h3>
+        <p>In the near field, groups of different mode pairs produce exactly the same pattern, so their coefficients cannot be separated. After the engineered transformation the patterns are distinct. The PMP matrix goes from singular to well conditioned.</p>
+      </article>
+      <article class="card reveal">
+        <h3>Beyond fibres</h3>
+        <p>The same optimisation applied to 36 Hermite–Gaussian beams and to 41 modes of a square integrated waveguide gives κ ≈ 14 and κ ≈ 18 at 98% mean capture.</p>
+      </article>
+      <article class="card reveal">
+        <h3>One mask transfers</h3>
+        <p>The mask optimised for the fibre also works unchanged for those two mode families, with κ = 16.8 and 24.1. Re-optimising for each family improves both.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section alt" id="experiment">
+  <div class="wrap">
+    <p class="kicker">Experiment</p>
+    <h2>42 modes from a single camera frame</h2>
+    <p class="lead">A 42-mode fibre is excited with thousands of different fields. One camera records the symmetry-broken intensity used for reconstruction; a second records an off-axis hologram used only for calibration and for checking the answer. The phase element is either an SLM showing the optimised mask or a plain ground-glass diffuser.</p>
+
+    <ol class="flow reveal">
+      <li><b>Launch</b>Light at 632.8 nm goes from a few-mode fibre into the multimode fibre with a controlled offset. A polarisation controller scrambles the excited modes.</li>
+      <li><b>Encode</b>The fibre output passes the phase element: an SLM showing the optimised mask, or a ground-glass diffuser.</li>
+      <li><b>Record</b>Camera C1 records the symmetry-broken intensity. This is the only input to the reconstruction.</li>
+      <li><b>Check</b>Camera C2 records an off-axis hologram of the fibre near field, used for calibration and as the reference.</li>
+    </ol>
+
+    <div class="facts">
+      <div class="fact reveal"><b>5,000</b><span>fields per acquisition: 250 launch positions × 20 controller states</span></div>
+      <div class="fact reveal"><b>25</b><span>launch positions (500 fields) held out and never used for calibration</span></div>
+      <div class="fact reveal"><b>κ ≈ 51 / 78</b><span>calibrated condition numbers, SLM / diffuser, with all 1,764 product directions kept</span></div>
+      <div class="fact reveal"><b>0.4% / 0.7%</b><span>median error against the 42-mode content of the reference, SLM / diffuser</span></div>
+    </div>
+
+    <div class="viz reveal" id="explorer">
+      <div class="viz-h">
+        <div>
+          <h3>Explore the held-out fields</h3>
+          <p>Every field below was reconstructed from one intensity image and compared with its hologram. Pick an acquisition and scrub from the best to the worst case.</p>
+        </div>
+        <div class="seg small" id="ex-case" role="radiogroup" aria-label="Acquisition">
+          <button data-c="diffuser" class="on">Diffuser · 368 fields</button>
+          <button data-c="slm">SLM · 150 fields</button>
+        </div>
+      </div>
+
+      <div class="ex-grid">
+        <div class="ex-fields">
+          <div class="ex-tile"><canvas id="ex-ref" width="64" height="64"></canvas><span>Holographic reference<small>42-mode content</small></span></div>
+          <div class="ex-tile"><canvas id="ex-rec" width="64" height="64"></canvas><span>From one intensity image<small>no reference beam</small></span></div>
+          <div class="ex-tile"><canvas id="ex-res" width="64" height="64"></canvas><span>Residual<small>same brightness scale</small></span></div>
+        </div>
+        <div class="ex-side">
+          <dl class="stats">
+            <div><dt>Launch · controller state</dt><dd id="ex-id">—</dd></div>
+            <div><dt>Field error vs full hologram</dt><dd id="ex-nmse">—</dd></div>
+            <div><dt>Error vs its 42-mode content</dt><dd id="ex-nmse-lp">—</dd></div>
+            <div><dt>Field coherence</dt><dd id="ex-coh">—</dd></div>
+          </dl>
+          <div class="btns">
+            <button data-jump="best">Best</button>
+            <button data-jump="median">Median</button>
+            <button data-jump="worst">Worst</button>
+            <button data-jump="random">Random</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="slider ex-slider">Field, ranked by error <output id="ex-rank">—</output>
+        <input type="range" id="ex-range" min="0" max="367" value="0" step="1">
+      </label>
+
+      <div class="ex-charts">
+        <div>
+          <h4>Modal weights of this field</h4>
+          <div class="chart short" id="chart-weights"></div>
+          <div class="legend">
+            <span style="--c:var(--s1)" class="bar">holographic reference</span>
+            <span style="--c:var(--s3)" class="dot">from intensity alone</span>
+          </div>
+        </div>
+        <div>
+          <h4>Field error across all held-out fields</h4>
+          <div class="chart short" id="chart-hist"></div>
+          <div class="legend">
+            <span style="--c:var(--s1)" class="bar">number of fields</span>
+            <span style="--c:var(--s2)" class="line">this field</span>
+            <span style="--c:var(--ink-3)" class="line dashed">median</span>
+          </div>
+        </div>
+      </div>
+      <p class="viz-note">Fields are drawn from the published modal coefficients in the released LP basis (hue = phase, brightness = intensity). The error against the full hologram also counts noise and light outside the 42 modes in the reference itself, which is why it is larger than the error against the 42-mode content. Only fields whose holograms passed the reference-quality checks are shown.</p>
+    </div>
+
+    <div class="cards three">
+        <article class="card reveal">
+          <h3>Fast enough for live monitoring</h3>
+          <p>From a raw 1,024×1,280 frame to 42 complex weights takes a median of <strong>2.1 ms</strong> on a consumer GPU (RTX 3090), about 480 frames per second one at a time. In batches the throughput is <strong>4,000–4,200 frames per second</strong>.</p>
+        </article>
+        <article class="card reveal">
+          <h3>The plain near field fails</h3>
+          <p>With the same inverse and the same basis, near-field intensity keeps only 286 of the 1,764 product directions and gives a median field error of <strong>94%</strong>. The symmetry-broken measurement is what makes the reconstruction possible.</p>
+        </article>
+        <article class="card reveal">
+          <h3>Checked without the hologram too</h3>
+          <p>In the SLM acquisition, the camera image re-synthesised from the recovered weights matches the measured one to a median of <strong>1.5%</strong>, equally for fields whose holograms were excluded.</p>
+        </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="progress">
+  <div class="wrap">
+    <p class="kicker">The fellowship</p>
+    <h2>Programme &amp; progress</h2>
+    <div class="objectives">
+      <div class="reveal"><b>O1</b> A robust algorithmic framework for fast intensity-only mode decomposition, tailored to industrial measurements.</div>
+      <div class="reveal"><b>O2</b> Optical mode transforms that maximise the number of resolvable modes and robustness to noise.</div>
+      <div class="reveal"><b>O3</b> Laboratory validation with few-mode and multimode fibres against off-axis holography.</div>
+      <div class="reveal"><b>O4</b> Evaluation of industrial applicability in fibre metrology with Arden Photonics.</div>
+    </div>
+    <p class="tl-lead">Both the algorithms and the laboratory validation are complete, well ahead of the original four-year plan shown below. Industrial evaluation with Arden Photonics comes next.</p>
+    <div class="timeline" id="timeline">
+      <div class="tl-axis"><span>Jan 2026</span><span>2027</span><span>2028</span><span>2029</span><span>Dec 2029</span></div>
+      <div class="tl-bar wp1 done" style="--a:0;--b:16"><span class="tick" aria-hidden="true">✓</span><b>WP1</b> Algorithms &amp; optical-transform optimisation · complete</div>
+      <div class="tl-bar wp2 done" style="--a:16;--b:36"><span class="tick" aria-hidden="true">✓</span><b>WP2</b> Experimental validation · complete, ahead of schedule</div>
+      <div class="tl-bar wp3" style="--a:36;--b:48"><b>WP3</b> Industrial evaluation with Arden Photonics · next</div>
+      <div class="tl-now"><span>now</span></div>
+    </div>
+    <ul class="status">
+      <li class="done"><b>Optical-transform optimisation framework</b>: a differentiable Fresnel model that minimises the PMP condition number under light-capture constraints.</li>
+      <li class="done"><b>Simulated degeneracy removal</b> for fibres guiding 6–51 modes, Hermite–Gaussian beams and square waveguides.</li>
+      <li class="done"><b>Laboratory validation</b>: 42-mode fields recovered from single images with an SLM and with a passive diffuser, verified against off-axis holography.</li>
+      <li class="done"><b>Preprint and open data</b>: the preprint is available on arXiv, with data and code deposited on Zenodo.</li>
+      <li class="active"><b>Peer review</b> of the first paper.</li>
+      <li><b>Static phase elements</b>: replacing the SLM with a fixed phase plate, and integrated implementations.</li>
+      <li><b>Industrial trials</b> on Arden Photonics measurement systems.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section alt" id="paper">
+  <div class="wrap">
+    <p class="kicker">Read more</p>
+    <h2>Paper, data &amp; code</h2>
+    <article class="paper reveal">
+      <div>
+        <p class="paper-tag">Preprint · 2026</p>
+        <h3>Optical symmetry breaking for single-image field reconstruction</h3>
+        <p class="paper-authors">Egor Manuylovich · Aston Institute of Photonic Technologies</p>
+        <p>Engineering the optical measurement to break modal symmetries enables direct reconstruction of the complex field from a single intensity image. A phase mask followed by propagation is optimised to separate pairwise modal signatures while keeping light on the detector; a calibrated linear inverse and a rank-one projection then recover modal amplitudes and relative phases without iterative phase retrieval.</p>
+        <div class="paper-links">
+          <a class="cta small" href="https://arxiv.org/abs/2611.16094">Full preprint on arXiv</a>
+          <a class="cta small" href="https://doi.org/10.5281/zenodo.23785123">Data &amp; code on Zenodo</a>
+          <span class="chip">Submitted for peer review</span>
+        </div>
+      </div>
+    </article>
+    <h3 class="sub">Background publications</h3>
+    <ol class="pubs">
+      <li>E. Manuylovich, “Sparse intensity sampling for ultrafast full-field reconstruction in low-dimensional photonic systems,” <em>Communications Physics</em> <b>8</b>, 149 (2025). <a href="https://doi.org/10.1038/s42005-025-02079-0">doi:10.1038/s42005-025-02079-0</a> · <a href="https://github.com/egor-manu/sparse-intensity-sampling-ultrafast-full-field-reconstruction">code</a></li>
+      <li>E. Manuylovich, A. Donodin, S. Turitsyn, “Intensity-only-measurement mode decomposition in few-mode fibers,” <em>Optics Express</em> <b>29</b>, 36769 (2021). <a href="https://doi.org/10.1364/OE.437907">doi:10.1364/OE.437907</a></li>
+      <li>E. S. Manuylovich, V. V. Dvoyrin, S. K. Turitsyn, “Fast mode decomposition in few-mode fibers,” <em>Nature Communications</em> <b>11</b>, 5507 (2020). <a href="https://doi.org/10.1038/s41467-020-19323-6">doi:10.1038/s41467-020-19323-6</a></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section" id="team">
+  <div class="wrap">
+    <p class="kicker">Who</p>
+    <h2>People &amp; partners</h2>
+    <div class="cards three">
+      <article class="card person reveal">
+        <h3>Dr Egor Manuylovich</h3>
+        <p class="role">Royal Society Industry Fellow · Research Fellow</p>
+        <p>Aston Institute of Photonic Technologies, Aston University. Works on mode decomposition and optical computing.</p>
+        <p><a href="mailto:e.manuylovich@aston.ac.uk">e.manuylovich@aston.ac.uk</a> · <a href="https://github.com/egor-manu">GitHub</a></p>
+      </article>
+      <article class="card reveal">
+        <h3>Arden Photonics</h3>
+        <p class="role">Industrial partner</p>
+        <p>A UK specialist in optical fibre measurement and inspection instruments. It hosts on-site validation and integration of ROMEO into industrial measurement systems.</p>
+        <p><a href="https://www.ardenphotonics.com">ardenphotonics.com</a></p>
+      </article>
+      <article class="card reveal">
+        <h3>Royal Society</h3>
+        <p class="role">Funder</p>
+        <p>The Industry Fellowship scheme supports academic–industry collaboration. ROMEO is a four-year fellowship (2026–2029) between Aston University and Arden Photonics.</p>
+        <p><a href="https://royalsociety.org/grants/industry-fellowships/">Industry Fellowships</a></p>
+      </article>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <p>ROMEO is supported by a Royal Society Industry Fellowship. Page and interactive demos by Egor Manuylovich.</p>
+    <p class="fine">Last updated November 2026.</p>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" role="status" aria-live="polite"></div>
+<div class="lightbox" id="lightbox" hidden><button aria-label="Close">×</button><img alt=""></div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script type="module" src="assets/romeo.js"></script>
+<script type="module" src="assets/results.js"></script>
+<script type="module" src="assets/site.js"></script>
+</body>
+</html>

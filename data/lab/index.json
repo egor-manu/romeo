@@ -1,0 +1,45 @@
+{
+ "camera": {
+  "pixels": 128,
+  "spanMm": 4.0704,
+  "pitchUm": 31.799999999999997
+ },
+ "near": {
+  "pixels": 64,
+  "halfWidthCoreRadii": 1.25
+ },
+ "mask": {
+  "pixels": 160,
+  "spanMm": 5.12
+ },
+ "fibres": [
+  {
+   "label": "6 modes",
+   "modes": 6,
+   "coreRadiusUm": 4.1,
+   "file": "m06",
+   "bytes": 1386872
+  },
+  {
+   "label": "10 modes",
+   "modes": 10,
+   "coreRadiusUm": 6.0,
+   "file": "m10",
+   "bytes": 2325240
+  },
+  {
+   "label": "17 modes",
+   "modes": 17,
+   "coreRadiusUm": 8.0,
+   "file": "m17",
+   "bytes": 4318816
+  },
+  {
+   "label": "42 modes",
+   "modes": 42,
+   "coreRadiusUm": 12.5,
+   "file": "m42",
+   "bytes": 28049912
+  }
+ ]
+}
